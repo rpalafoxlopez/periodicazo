@@ -5,15 +5,27 @@
           <span class="text-success fs-5 fw-bold">{{ day }}</span>
           <span class="mx-1 fs-5">{{ month }}</span>
           <span class="mx-2 fw-light">{{ yearDay }}</span>
+
         </div>
 
         <div>
-          <button class="btn btn-danger mx-2">
+          <input type="file"
+                 @change="onSelectedImage"
+                 ref="imageSelector"
+                 v-show="false"
+                 accept="image/jpeg, image/png"
+                />
+
+
+          <button v-if="entry.id"
+                  class="btn btn-danger mx-2"
+                  @click="onDeleteEntry">
             Borrar
             <i class="fa fa-trash-alt"></i>
           </button>
 
-          <button class="btn btn-primary">
+          <button class="btn btn-primary"
+                  @click="onSelectImage" >
             Subir foto
             <i class="fa fa-upload"></i>
           </button>
@@ -26,11 +38,25 @@
         <textarea placeholder="¿Qué sucedió hoy?" v-model="entry.text">
 
         </textarea>
+
       </div>
 
-      <img src="https://s3.amazonaws.com/cdn.wp.m4ecmx/wp-content/uploads/2019/09/09162546/imagen-vectorial-compressor.jpg"
+      <div v-if="entry.picture"
+           class="d-flex px-3 h-75 align-content-center">
+        <img :src="entry.picture"
+             class="img-fluid text-center" />
+      </div>
+
+      <img v-if="entry.picture && !localImage"
+           :src="entry.picture"
+           alt="picture"
+           class="img-thumbnail" />
+
+      <img v-if="localImage"
+           :src="localImage"
            alt="entry - picture"
            class="img-thumbnail" />
+
 
     </template>
 
@@ -41,8 +67,11 @@
 
 <script>
 import {defineAsyncComponent} from "vue";
-import {mapGetters} from "vuex";
+import {mapActions, mapGetters} from "vuex";
 import getDayMonthYear from '../helpers/getDayMonthYear'
+import Swal from 'sweetalert2'
+import uploadImage from "@/modules/daybook/helpers/uploadImage";
+
 export default {
   name: "EntryView",
   props:{
@@ -57,7 +86,9 @@ export default {
   },
   data(){
      return{
-        entry : null
+        entry : null,
+        localImage: null,
+        file: null
      }
   },
   computed:{
@@ -76,18 +107,87 @@ export default {
     }
   },
   methods:{
+     ...mapActions('journal', ['updateEntry', 'createEntry', 'deleteEntry']),
      loadEntry(){
-        const entry = this.getEntryById( this.id )
-       if( !entry ){
-          this.$router.push({ name: 'no-entry' })
-       }
-       else
+       let entry;
+       if( this.id === 'new')
        {
-          this.entry = entry
+         entry = {
+            text: '',
+            date: new Date().getTime()
+         }
+       } else {
+         entry = this.getEntryById( this.id )
+         if( !entry ){
+           this.$router.push({ name: 'no-entry' })
+         }
        }
+
+       this.entry = entry
+
      },
      async saveEntry(){
-        console.log('click en el boton')
+       new Swal({
+          title: 'Espere por favor',
+          allowOutsideClick: false,
+       })
+       Swal.showLoading()
+
+       const picture = await uploadImage( this.file )
+
+       this.entry.picture = picture
+
+       if( this.entry.id )
+       {
+          await this.updateEntry( this.entry )
+       }else{
+          const id = await this.createEntry( this.entry )
+          this.$router.push({ name: 'entry' , params:{ id }})
+       }
+       this.file = null
+       Swal.fire('Guardado', 'Entrada registrada con éxito', 'success')
+     },
+     async onDeleteEntry()
+     {
+       const { isConfirmed } = await Swal.fire({
+          title:'¿Está seguro?',
+          text: 'una vez borrado no se podrá recuperar',
+          showDenyButton: true,
+          confirmButtonText: 'Si, estoy seguro'
+       })
+       if( isConfirmed )
+       {
+         new Swal({
+           title: 'Espere por favor',
+           allowOutsideClick: false,
+         })
+
+         Swal.showLoading()
+
+         await this.deleteEntry( this.entry.id )
+         this.$router.push({ name: 'no-entry' })
+
+         Swal.fire('Eliminado', '', 'success')
+       }
+     },
+     onSelectedImage(event)
+     {
+        const file = event.target.files[0]
+        if(!file)
+        {
+           this.localImage = null
+           return
+        }
+
+        this.file = file
+
+        const fr = new FileReader()
+        fr.onload = () => this.localImage = fr.result
+        fr.readAsDataURL( file )
+     },
+     onSelectImage()
+     {
+       this.$refs.imageSelector.click()
      }
   },
   created() {

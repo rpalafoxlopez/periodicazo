@@ -3,7 +3,7 @@
      <h1 class="align-self-center">   No hay nada seleccionado </h1>
   </div>
   <Fab :icon="icon"
-       @on:click="saveEntry"/>
+       @on:click="createNewEntry"/>
 </template>
 
 <script>
@@ -20,8 +20,9 @@ export default {
      Fab: defineAsyncComponent(() => import('../components/Fab.vue'))
   },
   methods:{
-    async saveEntry(){
-      console.log('click en el boton')
+    async createNewEntry(){
+         this.$router.push({ name: 'entry', params: { id : 'new'} })
+
     }
   }
 }
